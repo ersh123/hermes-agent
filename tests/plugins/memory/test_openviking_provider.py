@@ -25,6 +25,17 @@ def _clear_openviking_tenant_env(monkeypatch):
 def _isolate_openviking_home(tmp_path, monkeypatch):
     home = tmp_path / "home"
     monkeypatch.setattr(openviking_module.Path, "home", staticmethod(lambda: home))
+    for key in (
+        "OPENVIKING_RECALL_LIMIT",
+        "OPENVIKING_RECALL_SCORE_THRESHOLD",
+        "OPENVIKING_RECALL_MAX_INJECTED_CHARS",
+        "OPENVIKING_RECALL_TIMEOUT_SECONDS",
+        "OPENVIKING_RECALL_REQUEST_TIMEOUT_SECONDS",
+        "OPENVIKING_RECALL_FULL_READ_LIMIT",
+        "OPENVIKING_RECALL_PREFER_ABSTRACT",
+        "OPENVIKING_RECALL_RESOURCES",
+    ):
+        monkeypatch.delenv(key, raising=False)
 
 
 def _clear_openviking_env(monkeypatch):

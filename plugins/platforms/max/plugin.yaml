@@ -1,0 +1,47 @@
+name: max-platform
+label: MAX
+kind: platform
+version: 1.0.0
+description: >
+  MAX messenger (МАКС by VK) platform adapter for Hermes Agent.
+  Connects to the MAX Bot API and relays messages between MAX chats
+  and the Hermes agent. Supports both long polling and webhook modes,
+  text messages, media attachments (images, files, audio, video),
+  inline keyboard callbacks, and markdown formatting.
+
+  Lightweight — no external SDK, only httpx (already a Hermes dependency).
+author: NousResearch
+requires_env:
+  - name: MAX_BOT_TOKEN
+    description: "MAX bot token (get from @MasterBot in MAX)"
+    prompt: "MAX bot token"
+    password: true
+optional_env:
+  - name: MAX_MODE
+    description: "Update delivery mode: 'polling' (default) or 'webhook'"
+    prompt: "MAX mode (polling/webhook)"
+    password: false
+  - name: MAX_WEBHOOK_URL
+    description: "Public URL for webhook mode (e.g. https://your-domain.com/webhook/max)"
+    prompt: "Webhook URL (or empty for polling)"
+    password: false
+  - name: MAX_WEBHOOK_PORT
+    description: "Local port for the webhook HTTP server (default: 8765)"
+    prompt: "Webhook port"
+    password: false
+  - name: MAX_ALLOWED_USERS
+    description: "Comma-separated MAX user IDs allowed to talk to the bot"
+    prompt: "Allowed users (comma-separated)"
+    password: false
+  - name: MAX_ALLOW_ALL_USERS
+    description: "Allow any MAX user to trigger the bot (dev only)"
+    prompt: "Allow all users? (true/false)"
+    password: false
+  - name: MAX_HOME_CHANNEL
+    description: "Default chat ID for cron / notification delivery"
+    prompt: "Home channel chat ID"
+    password: false
+  - name: MAX_HOME_CHANNEL_NAME
+    description: "Human label for the home channel (defaults to chat ID)"
+    prompt: "Home channel display name (or empty)"
+    password: false

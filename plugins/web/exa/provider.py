@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import Any, Dict, List
 
 from agent.web_search_provider import WebSearchProvider
@@ -38,25 +39,61 @@ logger = logging.getLogger(__name__)
 # that public module (see :func:`_get_exa_client`).
 
 
-def _get_exa_client() -> Any:
-    """Lazy-import and cache an Exa SDK client.
+def _get_exa_api_keys() -> List[str]:
+    """Return configured Exa keys.
 
-    Cache lives on :mod:`tools.web_tools` (as ``_exa_client``) so unit
-    tests that reset that name between cases keep working. Raises
-    ``ValueError`` when ``EXA_API_KEY`` is unset.
+    ``EXA_API_KEYS`` enables comma/space/newline separated round-robin pools.
+    ``EXA_API_KEY`` remains the single-key backward-compatible fallback.
+    """
+    pooled = os.getenv("EXA_API_KEYS", "")
+    keys = [part.strip() for part in re.split(r"[\s,;]+", pooled) if part.strip()]
+    if keys:
+        return keys
+
+    single = os.getenv("EXA_API_KEY", "").strip()
+    return [single] if single else []
+
+
+def _next_exa_api_key() -> str:
+    """Pick the next Exa key from the configured pool."""
+    import tools.web_tools as _wt
+
+    keys = _get_exa_api_keys()
+    if not keys:
+        raise ValueError(
+            "EXA_API_KEY or EXA_API_KEYS environment variable not set. "
+            "Get your API key at https://exa.ai"
+        )
+
+    index = int(getattr(_wt, "_exa_rr_index", 0))
+    setattr(_wt, "_exa_rr_index", index + 1)
+    return keys[index % len(keys)]
+
+
+def _get_exa_client() -> Any:
+    """Lazy-import and cache Exa SDK clients, round-robin by API key.
+
+    Cache lives on :mod:`tools.web_tools` so unit tests that reset
+    ``tools.web_tools._exa_client = None`` keep working. With
+    ``EXA_API_KEYS`` set, each call rotates to the next key while reusing
+    one SDK client per key.
     """
     import tools.web_tools as _wt
 
-    cached = getattr(_wt, "_exa_client", None)
-    if cached is not None:
-        return cached
+    api_key = _next_exa_api_key()
 
-    api_key = os.getenv("EXA_API_KEY")
-    if not api_key:
-        raise ValueError(
-            "EXA_API_KEY environment variable not set. "
-            "Get your API key at https://exa.ai"
-        )
+    clients = getattr(_wt, "_exa_clients_by_key", None)
+    legacy_cache = getattr(_wt, "_exa_client", None)
+    if clients is None:
+        clients = {}
+        setattr(_wt, "_exa_clients_by_key", clients)
+    elif legacy_cache is None:
+        clients.clear()
+
+    cached = clients.get(api_key)
+    if cached is not None:
+        _wt._exa_client = cached
+        return cached
 
     try:
         from tools.lazy_deps import ensure as _lazy_ensure
@@ -71,6 +108,7 @@ def _get_exa_client() -> Any:
 
     client = Exa(api_key=api_key)
     client.headers["x-exa-integration"] = "hermes-agent"
+    clients[api_key] = client
     _wt._exa_client = client
     return client
 
@@ -80,6 +118,8 @@ def _reset_client_for_tests() -> None:
     import tools.web_tools as _wt
 
     _wt._exa_client = None
+    setattr(_wt, "_exa_clients_by_key", {})
+    setattr(_wt, "_exa_rr_index", 0)
 
 
 class ExaWebSearchProvider(WebSearchProvider):
@@ -99,8 +139,8 @@ class ExaWebSearchProvider(WebSearchProvider):
         return "Exa"
 
     def is_available(self) -> bool:
-        """Return True when ``EXA_API_KEY`` is set to a non-empty value."""
-        return bool(os.getenv("EXA_API_KEY", "").strip())
+        """Return True when at least one Exa API key is configured."""
+        return bool(_get_exa_api_keys())
 
     def supports_search(self) -> bool:
         return True

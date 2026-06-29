@@ -6,8 +6,25 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, cast
 from urllib.parse import parse_qs, urlparse
 
+import pytest
+
 import plugins.memory.openviking as openviking_plugin
 from plugins.memory.openviking import OpenVikingMemoryProvider
+
+
+@pytest.fixture(autouse=True)
+def _isolate_openviking_recall_env(monkeypatch):
+    for key in (
+        "OPENVIKING_RECALL_LIMIT",
+        "OPENVIKING_RECALL_SCORE_THRESHOLD",
+        "OPENVIKING_RECALL_MAX_INJECTED_CHARS",
+        "OPENVIKING_RECALL_TIMEOUT_SECONDS",
+        "OPENVIKING_RECALL_REQUEST_TIMEOUT_SECONDS",
+        "OPENVIKING_RECALL_FULL_READ_LIMIT",
+        "OPENVIKING_RECALL_PREFER_ABSTRACT",
+        "OPENVIKING_RECALL_RESOURCES",
+    ):
+        monkeypatch.delenv(key, raising=False)
 
 
 def _write_skill(skills_dir, name, body="Do the thing."):

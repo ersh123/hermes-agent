@@ -257,6 +257,7 @@ _CMDPOS = (
     r'(?:sudo\s+(?:-[^\s]+\s+)*)?'  # optional sudo with flags
     r'(?:env\s+(?:\w+=\S*\s+)*)?'   # optional env with VAR=VAL pairs
     r'(?:(?:exec|nohup|setsid|time)\s+)*'  # optional wrapper commands
+    r'(?:(?:bash|sh|zsh|fish)\s+-[^\s]*c\s+["\']?)?'  # optional shell -c wrapper
     r'\s*'
 )
 
@@ -282,6 +283,19 @@ HARDLINE_PATTERNS = [
     (_CMDPOS + r'init\s+[06]\b', "init 0/6 (shutdown/reboot)"),
     (_CMDPOS + r'systemctl\s+(poweroff|reboot|halt|kexec)\b', "systemctl poweroff/reboot"),
     (_CMDPOS + r'telinit\s+[06]\b', "telinit 0/6 (shutdown/reboot)"),
+    # Hermes gateway self-termination floor. These must be hardline, not
+    # merely DANGEROUS, because gateway-originated terminal() calls can run
+    # without an approval surface. A restart/stop of the running unit kills
+    # the agent thread that issued it and can leave the gateway failed.
+    (
+        _CMDPOS
+        + r'systemctl\s+(?:--user\s+)?(?:-[^\s]+\s+)*'
+        + r'(stop|restart|try-restart|reload-or-restart|reload-or-try-restart|disable|mask|kill)\s+'
+        + r'(?:[^;|&`\n]*\s+)?hermes-gateway(?:[-.\w]*)?(?:\.service)?\b',
+        "systemctl lifecycle change for hermes gateway (self-termination)",
+    ),
+    (_CMDPOS + r'hermes\s+gateway\s+(stop|restart)\b', "stop/restart hermes gateway (self-termination)"),
+    (_CMDPOS + r'(pkill|killall)\b[^;|&`\n]*\b(hermes|hermes-gateway|gateway|cli\.py)\b', "kill hermes/gateway process (self-termination)"),
 ]
 
 # Pre-compiled variant used by the hot-path matcher. Building these at module

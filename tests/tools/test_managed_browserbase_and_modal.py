@@ -614,6 +614,36 @@ class TestShellEscapeBypass:
         from tools.approval import detect_dangerous_command
         assert detect_dangerous_command("rm -rf /")[0] is True
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "systemctl --user restart hermes-gateway",
+            "sudo systemctl stop hermes-gateway.service",
+            "bash -lc 'systemctl --user reload-or-restart hermes-gateway'",
+            "hermes gateway restart",
+            "pkill -f hermes-gateway",
+        ],
+    )
+    def test_gateway_self_termination_is_hardline(self, command):
+        from tools.approval import detect_hardline_command
+
+        blocked, reason = detect_hardline_command(command)
+        assert blocked is True
+        assert "gateway" in reason
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "systemctl --user status hermes-gateway",
+            "hermes gateway status",
+            "grep hermes-gateway ~/.hermes/logs/gateway.log",
+        ],
+    )
+    def test_gateway_read_only_commands_not_hardline(self, command):
+        from tools.approval import detect_hardline_command
+
+        assert detect_hardline_command(command)[0] is False
+
     def test_benign_command_not_flagged(self):
         from tools.approval import detect_dangerous_command
         assert detect_dangerous_command("ls -la")[0] is False

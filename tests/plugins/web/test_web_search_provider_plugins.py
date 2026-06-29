@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -37,6 +39,7 @@ def _clear_web_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "TAVILY_API_KEY",
         "TAVILY_BASE_URL",
         "EXA_API_KEY",
+        "EXA_API_KEYS",
         "PARALLEL_API_KEY",
         "PARALLEL_SEARCH_MODE",
         "FIRECRAWL_API_KEY",
@@ -191,6 +194,38 @@ class TestIsAvailable:
         assert p.is_available() is False
         monkeypatch.setenv("EXA_API_KEY", "real")
         assert p.is_available() is True
+
+    def test_exa_accepts_api_key_pool(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _ensure_plugins_loaded()
+        from agent.web_search_registry import get_provider
+
+        p = get_provider("exa")
+        assert p is not None
+        assert p.is_available() is False
+        monkeypatch.setenv("EXA_API_KEYS", "first, second\nthird")
+        assert p.is_available() is True
+
+    def test_exa_api_key_pool_round_robins_clients(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from plugins.web.exa import provider as exa_provider
+
+        created_keys: list[str] = []
+
+        class FakeExa:
+            def __init__(self, api_key: str) -> None:
+                self.api_key = api_key
+                self.headers: dict[str, str] = {}
+                created_keys.append(api_key)
+
+        monkeypatch.setitem(sys.modules, "exa_py", SimpleNamespace(Exa=FakeExa))
+        monkeypatch.setenv("EXA_API_KEYS", "first,second")
+        exa_provider._reset_client_for_tests()
+
+        assert exa_provider._get_exa_client().api_key == "first"
+        assert exa_provider._get_exa_client().api_key == "second"
+        assert exa_provider._get_exa_client().api_key == "first"
+        assert created_keys == ["first", "second"]
 
     def test_parallel_requires_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _ensure_plugins_loaded()
